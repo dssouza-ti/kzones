@@ -81,7 +81,7 @@ Item {
     // unlike getWindowsInZone, this matches on actual geometry instead of the zone
     // stored on the client, so windows that were never snapped by KZones (or were
     // snapped while another layout was active) still count as being in a zone
-    function getWindowsOverlappingZone(zoneGeometry) {
+    function getWindowsInZoneByGeometry(zone, zoneGeometries) {
         const windows = [];
         // stackingOrder is the only window enumeration the declarative scripting API
         // offers (windowList() exists on the imperative API only). Its order changes
@@ -102,13 +102,11 @@ Item {
             if (client.activities.length > 0 && !client.activities.includes(Workspace.currentActivity))
                 continue;
 
-            const area = Utils.overlapArea(client.frameGeometry, zoneGeometry);
-            if (area <= 0)
+            if (Utils.bestOverlappingZone(client.frameGeometry, zoneGeometries) !== zone)
                 continue;
 
             windows.push({
                 "client": client,
-                "area": area,
                 "key": Utils.windowKey(client, i)
             });
         }
@@ -122,11 +120,16 @@ Item {
             Utils.osd(`Zone ${zone + 1} does not exist`);
             return ;
         }
-        const zoneGeometry = getZoneGeometry(currentLayout, zone);
-        if (!zoneGeometry)
+        // every zone of the layout, because a window belongs to whichever one it
+        // overlaps the most and that can only be decided by comparing them all
+        const zoneGeometries = [];
+        for (let i = 0; i < zones.length; i++) {
+            zoneGeometries.push(getZoneGeometry(currentLayout, i));
+        }
+        if (!zoneGeometries[zone])
             return ;
 
-        const candidates = getWindowsOverlappingZone(zoneGeometry);
+        const candidates = getWindowsInZoneByGeometry(zone, zoneGeometries);
         const client = Utils.pickWindowInZone(candidates, Workspace.stackingOrder, Workspace.activeWindow);
         if (!client) {
             Utils.log("No window found in zone " + zone);

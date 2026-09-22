@@ -33,6 +33,26 @@ export function overlapArea(a, b) {
   return (x2 - x1) * (y2 - y1);
 }
 
+// The zone a window belongs to is the one it overlaps more than any other, however
+// small that overlap is: a free-floating window covering a tenth of a zone is still
+// in that zone, and deciding this per window rather than per zone is what keeps it
+// reachable next to a bigger neighbour. Ties go to the lowest zone index, so a
+// window spread evenly over two zones always resolves the same way. Returns -1 when
+// the window overlaps no zone at all.
+export function bestOverlappingZone(geometry, zoneGeometries) {
+  let best = -1;
+  let bestArea = 0;
+  for (let i = 0; i < zoneGeometries.length; i++) {
+    if (!zoneGeometries[i]) continue;
+    const area = overlapArea(geometry, zoneGeometries[i]);
+    if (area > bestArea) {
+      bestArea = area;
+      best = i;
+    }
+  }
+  return best;
+}
+
 // A key that identifies a window the same way on every invocation, so a cycle
 // order built from it cannot be reshuffled while windows are raised and lowered.
 // internalId is a stable per-window UUID and is what KWin 6 always provides; seq
@@ -48,24 +68,15 @@ export function windowKey(client, seq) {
   return "seq:" + ("0000" + seq).slice(-5);
 }
 
-// Picks which window to activate among the candidates overlapping a zone.
-// candidates is a list of { client, area, key }, stackingOrder runs bottom to top.
+// Picks which window to activate among the windows belonging to a zone.
+// candidates is a list of { client, key }, stackingOrder runs bottom to top.
 export function pickWindowInZone(candidates, stackingOrder, activeWindow) {
   if (candidates.length === 0) return null;
-
-  // Every window covering nearly as much of the zone as the best match counts as
-  // being in it, so a stack of windows sharing a zone stays reachable instead of
-  // just the single best-overlapping one.
-  let bestArea = 0;
-  for (let i = 0; i < candidates.length; i++) {
-    if (candidates[i].area > bestArea) bestArea = candidates[i].area;
-  }
-  const inZone = candidates.filter((candidate) => candidate.area >= bestArea * 0.9);
 
   // The cycle order must not come from the stacking order: activating a window
   // raises it, which would leave the window we just left permanently next in line,
   // ping-ponging between two windows instead of reaching the rest.
-  inZone.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const inZone = candidates.slice().sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 
   // Pressing the same zone again cycles through the windows stacked in it.
   for (let i = 0; i < inZone.length; i++) {
