@@ -25,6 +25,7 @@ Rectangle {
             y: ((modelData.y / 100) * (indicator.height))
             width: ((modelData.width / 100) * (indicator.width))
             height: ((modelData.height / 100) * (indicator.height))
+            z: activeZone == index ? 1 : 0
 
             Rectangle {
                 property int padding: 2
